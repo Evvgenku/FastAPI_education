@@ -1,5 +1,7 @@
 from fastapi import FastAPI
-from app.routers import categories, products, users, reviews
+from app.routers import categories, products, users, reviews, cart, orders
+from fastapi.staticfiles import StaticFiles
+
 
 
 # Создаём приложение FastAPI
@@ -14,6 +16,8 @@ app.include_router(products.router)
 app.include_router(users.router)
 app.include_router(reviews.router)
 app.include_router(reviews.router_products)
+app.include_router(cart.router)
+app.include_router(orders.router)
 
 # Корневой эндпоинт для проверки
 @app.get("/")
@@ -22,3 +26,5 @@ async def root():
     Корневой маршрут, подтверждающий, что API работает.
     """
     return {"message": "Добро пожаловать в API интернет-магазина!"}
+
+app.mount("/media", StaticFiles(directory="media"), name="media")

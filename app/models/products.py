@@ -1,10 +1,11 @@
 from decimal import Decimal
-from sqlalchemy import String, Boolean, Integer, Numeric, Float, text
+from sqlalchemy import String, Boolean, Integer, Numeric, Float, text, Index, Computed
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, func, DateTime
+from datetime import datetime
+from sqlalchemy.dialects.postgresql import TSVECTOR
 
 from app.database import Base
-
 
 class ProductModel(Base):
     __tablename__ = "products"
@@ -18,8 +19,29 @@ class ProductModel(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
     seller_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     rating: Mapped[float] = mapped_column(Float, default=0.0, server_default=text('0'))
+    cart_items: Mapped[list["CartItem"]] = relationship("CartItem", back_populates="product", cascade="all, delete-orphan")
+    reviews: Mapped[list["ReviewModel"]] = relationship("ReviewModel", back_populates="product")
+    order_items: Mapped[list["OrderItem"]] = relationship("OrderItem", back_populates="product")
+    
+    tsv: Mapped[TSVECTOR] = mapped_column(
+        TSVECTOR,
+        Computed(
+            """
+            setweight(to_tsvector('english', coalesce(name, '')), 'A')
+            || 
+            setweight(to_tsvector('english', coalesce(description, '')), 'B')
+            """,
+            persisted=True,
+        ),
+        nullable=False,
+    )
 
     category: Mapped["CategoryModel"] = relationship("CategoryModel", back_populates="products")
-    reviews: Mapped[list["ReviewModel"]] = relationship("ReviewModel", back_populates="product")
     seller: Mapped["User"] = relationship("User", back_populates="products")
+
+    __table_args__ = (
+        Index("ix_products_tsv_gin", "tsv", postgresql_using="gin"),
+    )
